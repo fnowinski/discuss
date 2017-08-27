@@ -3,10 +3,10 @@ defmodule Discuss.User do
 
   schema "users" do 
     field :email, :string 
-    field :provider, :string 
+    field :provider, :string
     field :token, :string 
-    has_many :topics, Discuss.Topic 
-    has_many :comments, Discuss.Comment     
+    has_many :topics, Discuss.Topic
+    has_many :comments, Discuss.Comment
     timestamps()
   end
 

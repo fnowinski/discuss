@@ -1,3 +1,30 @@
 <div> 
   <h4><%= @topic.title %></h4>
+<div>
+
+<div class="row">
+  <%= form_for @comment_changeset, topic_comment_path(@conn, :create, @topic.id), [id: "comment-form"], fn f -> %>
+    <div class="row">
+      <div class="input-field col s12">
+        <%= textarea f, :content, id: "comment-input", class: "materialize-textarea" %>
+        <label for="textarea1">Comment</label>
+      </div>
+    </div>
+    <%= submit "Submit", class: "btn cyan lighten-2" %>
+  <% end %>
+</div>
+
+<div class="row">
+  <h5 class="center">Comments</h5><br><hr>
+  
+  <%= for comment <- @topic.comments do %>
+    <ul class="collection" id="comments-container">
+      <li class="collection-item avatar">
+        <img src="images/yuna.jpg" alt="" class="circle">
+        <span class="title"><%= comment.content %></span>
+        <p><%= comment.user.email %>
+        <a href="#!" class="secondary-content"><i class="material-icons">grade</i></a>
+      </li>
+    </ul>
+  <% end %>
 </div>

@@ -3,8 +3,7 @@ require IEx
 defmodule Discuss.TopicController do 
   use Discuss.Web, :controller
 
-  alias Discuss.Topic
-  alias Discuss.User
+  alias Discuss.{Topic, User, Comment}
 
   plug Discuss.Plugs.RequireAuth when action in [:new, :create, :edit, :update, :delete]
   plug :topic_post_owner when action in [:update, :edit, :delete]  
@@ -16,8 +15,14 @@ defmodule Discuss.TopicController do
   end
 
   def show(conn, %{"id" => topic_id}) do 
-    topic = Repo.get!(Topic, topic_id)
-    render conn, "show.html", topic: topic
+    topic = Repo.one(from t in Topic, where: t.id == ^topic_id,
+                     left_join: comments in assoc(t, :comments),
+                     left_join: user in assoc(comments, :user),
+                     preload: [comments: {comments, user: user}])
+
+    comment_changeset = Comment.changeset(%Comment{})
+
+    render conn, "show.html", topic: topic, comment_changeset: comment_changeset
   end
 
   def new(conn, _params) do 
@@ -26,21 +31,17 @@ defmodule Discuss.TopicController do
     render conn, "new.html", changeset: changeset
   end
 
-  def create(conn, %{"topic" => topic}) do 
-    user_id = get_session(conn, :user_id) 
-    user = Repo.get(User, user_id)
+  def create(conn, %{"topic" => topic}) do
+    user_id = get_session(conn, :user_id)
+    user    = Repo.get(User, user_id)
 
-    changeset = user
-                |> build_assoc(:topics)
-                |> Topic.changeset(topic)
-    
-    case Repo.insert(changeset) do 
-      {:ok, _topic}         -> 
-        conn 
+    case Topic.create_topic(user, topic) do 
+      {:ok, topic} ->
+        conn
         |> put_flash(:info, "Topic Created")
         |> redirect(to: topic_path(conn, :index))
-      {:error, changeset} -> 
-        render conn, "new.html", changeset: changeset
+      {:error, topic} ->
+        render conn, "new.html", changeset: topic
     end
   end
 

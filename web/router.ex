@@ -18,7 +18,9 @@ defmodule Discuss.Router do
     pipe_through :browser 
 
     get "/chatrooms", ChatroomController, :index
-    resources "/", TopicController 
+    resources "/", TopicController  do
+      resources "/comments", CommentController, only: [:create]
+    end
   end
 
   scope "/auth", Discuss do 
@@ -28,9 +30,4 @@ defmodule Discuss.Router do
     get "/:provider", AuthController, :request 
     get "/:provider/callback", AuthController, :callback
   end
-
-  # Other scopes may use custom stacks.
-  # scope "/api", Discuss do
-  #   pipe_through :api
-  # end
 end
