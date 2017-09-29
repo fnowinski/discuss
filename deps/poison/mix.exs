@@ -30,18 +30,19 @@ defmodule Poison.Mixfile do
   #
   # Type `mix help deps` for more examples and options
   defp deps do
-    [{:earmark, "~> 0.2", only: :docs},
-     {:ex_doc, "~> 0.11", only: :docs},
+    [{:earmark, "~> 1.0", only: :docs},
+     {:ex_doc, "~> 0.14", only: :docs},
      {:benchfella, "~> 0.3", only: :bench},
      {:jiffy, github: "davisp/jiffy", only: :bench},
      {:exjsx, github: "talentdeficit/exjsx", only: :bench},
+     {:json, github: "cblage/elixir-json", only: :bench},
      {:jazz, github: "meh/jazz", only: :bench}]
   end
 
   defp package do
-    [files: ~w(lib mix.exs README.md LICENSE UNLICENSE VERSION),
+    [files: ~w(lib mix.exs README.md LICENSE VERSION),
      maintainers: ["Devin Torres"],
-     licenses: ["Unlicense"],
+     licenses: ["CC0-1.0"],
      links: %{"GitHub" => "https://github.com/devinus/poison"}]
   end
 end

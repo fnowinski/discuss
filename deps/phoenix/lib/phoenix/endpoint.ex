@@ -1,5 +1,5 @@
 defmodule Phoenix.Endpoint do
-  @moduledoc """
+  @moduledoc ~S"""
   Defines a Phoenix endpoint.
 
   The endpoint is the boundary where all requests to your
@@ -11,8 +11,8 @@ defmodule Phoenix.Endpoint do
     * to provide a wrapper for starting and stopping the
       endpoint as part of a supervision tree;
 
-    * to define an initial plug pipeline where requests
-      are sent through;
+    * to define an initial plug pipeline for requests
+      to pass through;
 
     * to host web specific configuration for your
       application.
@@ -20,7 +20,7 @@ defmodule Phoenix.Endpoint do
   ## Endpoints
 
   An endpoint is simply a module defined with the help
-  of `Phoenix.Endpoint`. If you have used the `mix phoenix.new`
+  of `Phoenix.Endpoint`. If you have used the `mix phx.new`
   generator, an endpoint was automatically generated as
   part of your application:
 
@@ -33,9 +33,10 @@ defmodule Phoenix.Endpoint do
         plug YourApp.Router
       end
 
-  Before being used, an endpoint must be explicitly started as part
-  of your application supervision tree too (which is again done by
-  default in generated applications):
+  Endpoints must be explicitly started as part of your application
+  supervision tree. Endpoints are added by default
+  to the supervision tree in generated applications. Endpoints can be
+  added to the supervision tree as follows:
 
       supervisor(YourApp.Endpoint, [])
 
@@ -53,11 +54,21 @@ defmodule Phoenix.Endpoint do
   configuration is mostly related to error handling and instrumentation.
 
   Runtime configuration, instead, is accessed during or
-  after your application is started and can be read and written through the
-  `config/2` function:
+  after your application is started and can be read through the
+  `c:config/2` function:
 
       YourApp.Endpoint.config(:port)
       YourApp.Endpoint.config(:some_config, :default_value)
+
+  ### Dynamic configuration
+
+  For dynamically configuring the endpoint, such as loading data
+  from environment variables or configuration files, Phoenix invokes
+  the `init/2` callback on the endpoint, passing a `:supervivsor`
+  atom as first argument and the endpoint configuration as second.
+
+  All of Phoenix configuration, except the Compile-time configuration
+  below can be set dynamically from the `c:init/2` callback.
 
   ### Compile-time configuration
 
@@ -85,8 +96,8 @@ defmodule Phoenix.Endpoint do
 
     * `:cache_static_manifest` - a path to a json manifest file that contains
       static files and their digested version. This is typically set to
-      "priv/static/manifest.json" which is the file automatically generated
-      by `mix phoenix.digest`.
+      "priv/static/cache_manifest.json" which is the file automatically generated
+      by `mix phx.digest`.
 
     * `:check_origin` - configure transports to check origins or not. May
       be false, true or a list of hosts that are allowed. Hosts also support
@@ -95,27 +106,30 @@ defmodule Phoenix.Endpoint do
           check_origin: ["//phoenixframework.org", "//*.example.com"]
 
     * `:http` - the configuration for the HTTP server. Currently uses
-      cowboy and accepts all options as defined by
+      Cowboy and accepts all options as defined by
       [`Plug.Adapters.Cowboy`](https://hexdocs.pm/plug/Plug.Adapters.Cowboy.html).
       Defaults to `false`.
 
     * `:https` - the configuration for the HTTPS server. Currently uses
-      cowboy and accepts all options as defined by
+      Cowboy and accepts all options as defined by
       [`Plug.Adapters.Cowboy`](https://hexdocs.pm/plug/Plug.Adapters.Cowboy.html).
       Defaults to `false`.
 
     * `:force_ssl` - ensures no data is ever sent via http, always redirecting
       to https. It expects a list of options which are forwarded to `Plug.SSL`.
-      By default, it redirects http requests and sets the
-      "strict-transport-security" header for https ones.
+      By defalts it sets the "strict-transport-security" header in https requests,
+      forcing browsers to always use https. If an unsafe request (http) is sent,
+      it redirects to the https version using the `:host` specified in the `:url`
+      configuration. To dynamically redirect to the `host` of the current request,
+      `:host` must be set `nil`.
 
     * `:secret_key_base` - a secret key used as a base to generate secrets
       for encrypting and signing data. For example, cookies and tokens
-      are signed by default but they may also be encrypted if desired.
+      are signed by default, but they may also be encrypted if desired.
       Defaults to `nil` as it must be set per application.
 
     * `:server` - when `true`, starts the web server when the endpoint
-      supervision tree starts. Defaults to `false`. The `mix phoenix.server`
+      supervision tree starts. Defaults to `false`. The `mix phx.server`
       task automatically sets this to `true`.
 
     * `:url` - configuration for generating URLs throughout the app.
@@ -140,7 +154,7 @@ defmodule Phoenix.Endpoint do
 
     * `:watchers` - a set of watchers to run alongside your server. It
       expects a list of tuples containing the executable and its arguments.
-      Watchers are guaranteed to run in the application directory but only
+      Watchers are guaranteed to run in the application directory, but only
       when the server is enabled. For example, the watcher below will run
       the "watch" mode of the brunch build tool when the server starts.
       You can configure it to whatever build tool or command you want:
@@ -164,9 +178,10 @@ defmodule Phoenix.Endpoint do
 
     * `:pubsub` - configuration for this endpoint's pubsub adapter.
       Configuration either requires a `:name` of the registered pubsub
-      server or a `:name` and `:adapter` pair. The given adapter and
-      name pair will be started as part of the supervision tree. if
-      no adapter is specified, the pubsub system will work by sending
+      server or a `:name` and `:adapter` pair. The pubsub name and adapter
+      are compile time configuration, while the remaining options are runtime.
+      The given adapter and name pair will be started as part of the supervision
+      tree. If no adapter is specified, the pubsub system will work by sending
       events and subscribing to the given name. Defaults to:
 
           [adapter: Phoenix.PubSub.PG2, name: MyApp.PubSub]
@@ -178,62 +193,25 @@ defmodule Phoenix.Endpoint do
 
   ## Endpoint API
 
-  In the previous section, we have used the `config/2` function which is
-  automatically generated in your endpoint. Here is a summary of all the
-  functions that are automatically defined in your endpoint.
+  In the previous section, we have used the `c:config/2` function that is
+  automatically generated in your endpoint. Here's a list of all the functions
+  that are automatically defined in your endpoint:
 
-  #### Paths and URLs
-
-    * `struct_url()` - generates the endpoint base URL but as a `URI` struct
-    * `url()` - generates the endpoint base URL without any path information
-    * `path(path)` - generates the path information when routing to this endpoint
-    * `static_url()` - generates the static URL without any path information
-    * `static_path(path)` - generates a route to a static file in `priv/static`
-
-  #### Channels
-
-    * `subscribe(topic, opts)` - subscribes the caller to the given topic.
-      See `Phoenix.PubSub.subscribe/3` for options.
-
-    * `unsubscribe(topic)` - unsubscribes the caller from the given topic.
-
-    * `broadcast(topic, event, msg)` - broadcasts a `msg` with as `event`
-      in the given `topic`.
-
-    * `broadcast!(topic, event, msg)` - broadcasts a `msg` with as `event`
-      in the given `topic`. Raises in case of failures.
-
-    * `broadcast_from(from, topic, event, msg)` - broadcasts a `msg` from
-      the given `from` as `event` in the given `topic`.
-
-    * `broadcast_from!(from, topic, event, msg)` - broadcasts a `msg` from
-      the given `from` as `event` in the given `topic`. Raises in case of failures.
-
-  #### Endpoint configuration
-
-    * `start_link()` - starts the Endpoint supervision tree, including its
-      configuration cache and possibly the servers for handling requests
-    * `config(key, default)` - access the endpoint configuration given by key
-    * `config_change(changed, removed)` - reload the endpoint configuration
-      on application upgrades
-
-  #### Plug API
-
-    * `init(opts)` - invoked when starting the endpoint server
-    * `call(conn, opts)` - invoked on every request (simply dispatches to
-      the defined plug pipeline)
-
-  #### Instrumentation API
-
-    * `instrument(event, runtime_metadata \\ nil, function)` - read more about
-      instrumentation in the "Instrumentation" section
+    * for handling paths and URLs: `c:struct_url/0`, `c:url/0`, `c:path/1`,
+      `c:static_url/0`, and `c:static_path/1`;
+    * for handling channel subscriptions: `c:subscribe/2` and `c:unsubscribe/1`;
+    * for broadcasting to channels: `c:broadcast/3`, `c:broadcast!/3`,
+      `c:broadcast_from/4`, and `c:broadcast_from!/4`
+    * for configuration: `c:start_link/0`, `c:config/2`, and `c:config_change/2`;
+    * for instrumentation: `c:instrument/3`;
+    * as required by the `Plug` behaviour: `c:Plug.init/1` and `c:Plug.call/2`.
 
   ## Instrumentation
 
   Phoenix supports instrumentation through an extensible API. Each endpoint
-  defines an `instrument/3` macro that both users and Phoenix internals can call
+  defines an `c:instrument/3` macro that both users and Phoenix internals can call
   to instrument generic events. This macro is responsible for measuring the time
-  it takes for the event to happen and for notifying a list of interested
+  it takes for the event to be processed and for notifying a list of interested
   instrumenter modules of this measurement.
 
   You can configure this list of instrumenter modules in the compile-time
@@ -244,34 +222,27 @@ defmodule Phoenix.Endpoint do
   instrumenter module interested in that event will have to export
   `render_view/3`.
 
-  **Note**: since the configuration for the list of instrumenters is specified
-  at compile time but it's used inside Phoenix itself, if you change this
-  configuration you'll have to recompile Phoenix manually:
-
-      $ mix deps.compile phoenix
-      $ mix compile
-
   ### Callbacks cycle
 
-  The way event callbacks are called is the following.
+  The event callback sequence is:
 
     1. The event callback is called *before* the event happens (in this case,
        before the view is rendered) with the atom `:start` as the first
        argument; see the "Before clause" section below.
-    2. The event happens (in this case, the view is rendered).
+    2. The event occurs (in this case, the view is rendered).
     3. The same event callback is called again, this time with the atom `:stop`
        as the first argument; see the "After clause" section below.
 
-  The second and third argument that each event callback takes depend on the
-  callback being an "after" or a "before" callback (i.e., they depend on the
-  value of the first argument, `:start` or `:stop`). For this reason, most of
+  The second and third argument that each event callback takes depends on the
+  callback being an "after" or a "before" callback i.e. it depends on the
+  value of the first argument, `:start` or `:stop`. For this reason, most of
   the time you will want to define (at least) two separate clauses for each
   event callback, one for the "before" and one for the "after" callbacks.
 
-  All event callbacks are run in the same process that calls the `instrument/3`
-  macro; hence, instrumenters should be careful in performing blocking actions.
+  All event callbacks are run in the same process that calls the `c:instrument/3`
+  macro; hence, instrumenters should be careful to avoid performing blocking actions.
   If an event callback fails in any way (exits, throws, or raises), it won't
-  affect anything (the error is caught) but the failure will be logged. Note
+  affect anything as the error is caught, but the failure will be logged. Note
   that "after" callbacks are not guaranteed to be called as, for example, a link
   may break before they've been called.
 
@@ -288,7 +259,7 @@ defmodule Phoenix.Endpoint do
       where `instrument/3` has been called. It contains the module where the
       instrumentation is happening (under the `:module` key), the file and line
       (`:file` and `:line`), and the function inside which the instrumentation
-      is happening (under `:function`). This information can be used arbitrarely
+      is happening (under `:function`). This information can be used arbitrarily
       by the callback.
     * `runtime_metadata` is a map of runtime data that the instrumentation
       passes to the callbacks. This can be used for any purposes: for example,
@@ -322,9 +293,9 @@ defmodule Phoenix.Endpoint do
   called like this:
 
       require MyApp.Endpoint
-      MyApp.Endpoint.instrument :render_view, %{view: "index.html"}, fn ->
+      MyApp.Endpoint.instrument(:render_view, %{view: "index.html"}, fn ->
         # actual view rendering
-      end
+      end)
 
   All the instrumenter modules that export a `render_view/3` function will be
   notified of the event so that they can perform their respective actions.
@@ -337,29 +308,139 @@ defmodule Phoenix.Endpoint do
       The `%Plug.Conn{}` is passed as runtime metadata.
     * `:phoenix_controller_render` - the rendering of a view from a
       controller. The map of runtime metadata passed to instrumentation
-      callbacks has the `:template` key - for the name of the template, e.g.,
-      `"index.html"` - and the `:format` key - for the format of the template.
+      callbacks has the `:view` key - for the name of the view, e.g. `HexWeb.ErrorView`,
+      the `:template` key - for the name of the template, e.g.,
+      `"index.html"`, the `:format` key - for the format of the template, and
+      the `:conn` key - containing the `%Plug.Conn{}`.
     * `:phoenix_channel_join` - the joining of a channel. The `%Phoenix.Socket{}`
       and join params are passed as runtime metadata via `:socket` and `:params`.
-    * `:phoenix_channel_receive` - the receiving of an incoming message over a
+    * `:phoenix_channel_receive` - the receipt of an incoming message over a
       channel. The `%Phoenix.Socket{}`, payload, event, and ref are passed as
       runtime metadata via `:socket`, `:params`, `:event`, and `:ref`.
 
   ### Dynamic instrumentation
 
-  If you want to instrument a piece of code but the endpoint that should
-  instrument it (the one that contains the `instrument/3` macro you want to use)
-  is not known at compile time, but only at runtime, then you can use the
+  If you want to instrument a piece of code, but the endpoint that should
+  instrument it (the one that contains the `c:instrument/3` macro you want to use)
+  is not known at compile time, only at runtime, you can use the
   `Phoenix.Endpoint.instrument/4` macro. Refer to its documentation for more
   information.
 
   """
 
-  alias Phoenix.Endpoint.Adapter
+  @type topic :: String.t
+  @type event :: String.t
+  @type msg :: map
+
+  # Configuration
+
+  @doc """
+  Starts the Endpoint supervision tree.
+
+  Starts endpoint's configuration cache and possibly the servers for
+  handling requests.
+  """
+  @callback start_link() :: Supervisor.on_start
+
+  @doc """
+  Access the endpoint configuration given by key.
+  """
+  @callback config(key :: atom, default :: term) :: term
+
+  @doc """
+  Reload the endpoint configuration on application upgrades.
+  """
+  @callback config_change(changed :: term, removed :: term) :: term
+
+  @doc """
+  Initialize the endpoint configuration.
+
+  Invoked when the endpoint supervisor starts, allows dynamically
+  configuring the endpoint from system environment or other runtime sources.
+  """
+  @callback init(:supervisor, config :: Keyword.t) :: {:ok, Keyword.t}
+
+  # Paths and URLs
+
+  @doc """
+  Generates the endpoint base URL, but as a `URI` struct.
+  """
+  @callback struct_url() :: URI.t
+
+  @doc """
+  Generates the endpoint base URL without any path information.
+  """
+  @callback url() :: String.t
+
+  @doc """
+  Generates the path information when routing to this endpoint.
+  """
+  @callback path(path :: String.t) :: String.t
+
+  @doc """
+  Geerates the static URL without any path information.
+  """
+  @callback static_url() :: String.t
+
+  @doc """
+  Generates a route to a static file in `priv/static`
+  """
+  @callback static_path(path :: String.t) :: String.t
+
+  # Channels
+
+  @doc """
+  Subscribes the caller to the given topic.
+
+  See `Phoenix.PubSub.subscribe/3` for options.
+  """
+  @callback subscribe(topic, opts :: Keyword.t) :: :ok | {:error, term}
+
+  @doc """
+  Unsubscribes the caller from the given topic.
+  """
+  @callback unsubscribe(topic) :: :ok | {:error, term}
+
+  @doc """
+  Broadcasts a `msg` as `event` in the given `topic`.
+  """
+  @callback broadcast(topic, event, msg) :: :ok | {:error, term}
+
+  @doc """
+  Broadcasts a `msg` as `event` in the given `topic`.
+
+  Raises in case of failures.
+  """
+  @callback broadcast!(topic, event, msg) :: :ok | no_return
+
+  @doc """
+  Broadcasts a `msg` from the given `from` as `event` in the given `topic`.
+  """
+  @callback broadcast_from(from :: pid, topic, event, msg) :: :ok | {:error, term}
+
+  @doc """
+  Broadcasts a `msg` from the given `from` as `event` in the given `topic`.
+
+  Raises in case of failures.
+  """
+  @callback broadcast_from!(from :: pid, topic, event, msg) :: :ok | no_return
+
+  # Instrumentation
+
+  @doc """
+  Allows instrumenting operation defined by `function`.
+
+  `runtime_metadata` may be omitted and defaults to `nil`.
+
+  Read more about instrumentation in the "Instrumentation" section.
+  """
+  @macrocallback instrument(instrument_event :: Macro.t, runtime_metadata :: Macro.t, funcion :: Macro.t) :: Macro.t
 
   @doc false
   defmacro __using__(opts) do
     quote do
+      @behaviour Phoenix.Endpoint
+
       unquote(config(opts))
       unquote(pubsub())
       unquote(plug())
@@ -370,11 +451,20 @@ defmodule Phoenix.Endpoint do
   defp config(opts) do
     quote do
       @otp_app unquote(opts)[:otp_app] || raise "endpoint expects :otp_app to be given"
-      var!(config) = Adapter.config(@otp_app, __MODULE__)
+      var!(config) = Phoenix.Endpoint.Supervisor.config(@otp_app, __MODULE__)
       var!(code_reloading?) = var!(config)[:code_reloader]
 
       # Avoid unused variable warnings
       _ = var!(code_reloading?)
+
+      @doc """
+      Callback invoked on endpoint initialization.
+      """
+      def init(_key, config) do
+        {:ok, config}
+      end
+
+      defoverridable init: 2
     end
   end
 
@@ -388,8 +478,10 @@ defmodule Phoenix.Endpoint do
 
       def __pubsub_server__, do: @pubsub_server
 
-      # TODO remove pid version on next major release
+      # TODO v2: Remove pid version
+      @doc false
       def subscribe(pid, topic) when is_pid(pid) and is_binary(topic) do
+        IO.warn "#{__MODULE__}.subscribe/2 is deprecated, please use subscribe/1"
         Phoenix.PubSub.subscribe(@pubsub_server, pid, topic, [])
       end
       def subscribe(pid, topic, opts) when is_pid(pid) and is_binary(topic) and is_list(opts) do
@@ -402,11 +494,13 @@ defmodule Phoenix.Endpoint do
         Phoenix.PubSub.subscribe(@pubsub_server, topic, opts)
       end
 
-      # TODO remove pid version on next major release
-      def unsubscribe(topic) do
+      # TODO v2: Remove pid version
+      @doc false
+      def unsubscribe(pid, topic) do
+        IO.warn "#{__MODULE__}.unsubscribe/2 is deprecated, please use unsubscribe/1"
         Phoenix.PubSub.unsubscribe(@pubsub_server, topic)
       end
-      def unsubscribe(pid, topic) do
+      def unsubscribe(topic) do
         Phoenix.PubSub.unsubscribe(@pubsub_server, topic)
       end
 
@@ -430,22 +524,13 @@ defmodule Phoenix.Endpoint do
 
   defp plug() do
     quote location: :keep do
-      @behaviour Plug
+      use Plug.Builder
       import Phoenix.Endpoint
 
-      Module.register_attribute(__MODULE__, :plugs, accumulate: true)
       Module.register_attribute(__MODULE__, :phoenix_sockets, accumulate: true)
 
       if force_ssl = Phoenix.Endpoint.__force_ssl__(__MODULE__, var!(config)) do
         plug Plug.SSL, force_ssl
-      end
-
-      def init(opts) do
-        opts
-      end
-
-      def call(conn, _opts) do
-        phoenix_pipeline(conn)
       end
 
       if var!(config)[:debug_errors] do
@@ -458,18 +543,27 @@ defmodule Phoenix.Endpoint do
       # Compile after the debugger so we properly wrap it.
       @before_compile Phoenix.Endpoint
       @phoenix_render_errors var!(config)[:render_errors]
-
-      defoverridable [init: 1, call: 2]
     end
   end
 
   defp server() do
     quote location: :keep, unquote: false do
+      @doc false
+      def child_spec(opts) do
+        %{
+          id: __MODULE__,
+          start: {__MODULE__, :start_link, [opts]},
+          type: :supervisor
+        }
+      end
+
+      defoverridable child_spec: 1
+
       @doc """
       Starts the endpoint supervision tree.
       """
-      def start_link do
-        Adapter.start_link(@otp_app, __MODULE__)
+      def start_link(_opts \\ []) do
+        Phoenix.Endpoint.Supervisor.start_link(@otp_app, __MODULE__)
       end
 
       @doc """
@@ -488,7 +582,7 @@ defmodule Phoenix.Endpoint do
       Reloads the configuration given the application environment changes.
       """
       def config_change(changed, removed) do
-        Phoenix.Endpoint.Adapter.config_change(__MODULE__, changed, removed)
+        Phoenix.Endpoint.Supervisor.config_change(__MODULE__, changed, removed)
       end
 
       @doc """
@@ -499,67 +593,69 @@ defmodule Phoenix.Endpoint do
       def url do
         Phoenix.Config.cache(__MODULE__,
           :__phoenix_url__,
-          &Phoenix.Endpoint.Adapter.url/1)
+          &Phoenix.Endpoint.Supervisor.url/1)
       end
 
       @doc """
       Generates the static URL without any path information.
 
       It uses the configuration under `:static_url` to generate
-      such. It fallsback to `:url` if `:static_url` is not set.
+      such. It falls back to `:url` if `:static_url` is not set.
       """
       def static_url do
         Phoenix.Config.cache(__MODULE__,
           :__phoenix_static_url__,
-          &Phoenix.Endpoint.Adapter.static_url/1)
+          &Phoenix.Endpoint.Supervisor.static_url/1)
       end
 
       @doc """
       Generates the endpoint base URL but as a `URI` struct.
 
       It uses the configuration under `:url` to generate such.
-      Useful for manipulating the url data and passing to
+      Useful for manipulating the URL data and passing it to
       URL helpers.
       """
       def struct_url do
         Phoenix.Config.cache(__MODULE__,
           :__phoenix_struct_url__,
-          &Phoenix.Endpoint.Adapter.struct_url/1)
+          &Phoenix.Endpoint.Supervisor.struct_url/1)
+      end
+
+      @doc """
+      Returns the host for the given endpoint.
+      """
+      def host do
+        Phoenix.Config.cache(__MODULE__,
+          :__phoenix_host__,
+          &Phoenix.Endpoint.Supervisor.host/1)
       end
 
       @doc """
       Generates the path information when routing to this endpoint.
       """
-      script_name = var!(config)[:url][:path]
-
-      if script_name == "/" do
-        def path(path), do: path
-
-        defp put_script_name(conn) do
-          conn
-        end
-      else
-        def path(path), do: unquote(script_name) <> path
-
-        defp put_script_name(conn) do
-          put_in conn.script_name, unquote(Plug.Router.Utils.split(script_name))
-        end
+      def path(path) do
+        Phoenix.Config.cache(__MODULE__,
+          :__phoenix_path__,
+          &Phoenix.Endpoint.Supervisor.path/1) <> path
       end
 
-      # The static path should be properly scoped according to
-      # the static_url configuration. If one is not available,
-      # we fallback to the url configuration as in the adapter.
-      static_script_name = (var!(config)[:static_url] || var!(config)[:url])[:path] || "/"
-      static_script_name = if static_script_name == "/", do: "", else: static_script_name
+      @doc """
+      Generates the script name.
+      """
+      def script_name do
+        Phoenix.Config.cache(__MODULE__,
+          :__phoenix_script_name__,
+          &Phoenix.Endpoint.Supervisor.script_name/1)
+      end
 
       @doc """
       Generates a route to a static file in `priv/static`.
       """
       def static_path(path) do
-        # This should be in sync with the endpoint warmup.
-        unquote(static_script_name) <>
-          Phoenix.Config.cache(__MODULE__, {:__phoenix_static__, path},
-                               &Phoenix.Endpoint.Adapter.static_path(&1, path))
+        Phoenix.Config.cache(__MODULE__, :__phoenix_static__,
+                             &Phoenix.Endpoint.Supervisor.static_path/1) <>
+        Phoenix.Config.cache(__MODULE__, {:__phoenix_static__, path},
+                             &Phoenix.Endpoint.Supervisor.static_path(&1, path))
       end
     end
   end
@@ -567,9 +663,9 @@ defmodule Phoenix.Endpoint do
   @doc false
   def __force_ssl__(module, config) do
     if force_ssl = config[:force_ssl] do
-      force_ssl = Keyword.put_new(force_ssl, :host, var!(config)[:url][:host] || "localhost")
+      host = force_ssl[:host] || config[:url][:host] || "localhost"
 
-      if force_ssl[:host] == "localhost" do
+      if host == "localhost" do
         IO.puts :stderr, """
         warning: you have enabled :force_ssl but your host is currently set to localhost.
         Please configure your endpoint url host properly:
@@ -578,15 +674,13 @@ defmodule Phoenix.Endpoint do
         """
       end
 
-      force_ssl
+      Keyword.put_new(force_ssl, :host, {module, :host, []})
     end
   end
 
   @doc false
   defmacro __before_compile__(env) do
     sockets = Module.get_attribute(env.module, :phoenix_sockets)
-    plugs = Module.get_attribute(env.module, :plugs)
-    {conn, body} = Plug.Builder.compile(env, plugs, [])
     otp_app = Module.get_attribute(env.module, :otp_app)
     instrumentation = Phoenix.Endpoint.Instrument.definstrument(otp_app, env.module)
 
@@ -596,10 +690,8 @@ defmodule Phoenix.Endpoint do
       # Inline render errors so we set the endpoint before calling it.
       def call(conn, opts) do
         conn = put_in conn.secret_key_base, config(:secret_key_base)
-        conn =
-          conn
-          |> Plug.Conn.put_private(:phoenix_endpoint, __MODULE__)
-          |> put_script_name()
+        conn = put_in conn.script_name, script_name()
+        conn = Plug.Conn.put_private(conn, :phoenix_endpoint, __MODULE__)
 
         try do
           super(conn, opts)
@@ -608,8 +700,6 @@ defmodule Phoenix.Endpoint do
             Phoenix.Endpoint.RenderErrors.__catch__(conn, kind, reason, @phoenix_render_errors)
         end
       end
-
-      defp phoenix_pipeline(unquote(conn)), do: unquote(body)
 
       @doc """
       Returns all sockets configured in this endpoint.
@@ -621,15 +711,6 @@ defmodule Phoenix.Endpoint do
   end
 
   ## API
-
-  @doc """
-  Stores a plug to be executed as part of the pipeline.
-  """
-  defmacro plug(plug, opts \\ []) do
-    quote do
-      @plugs {unquote(plug), unquote(opts), true}
-    end
-  end
 
   @doc """
   Defines a mount-point for a Socket module to handle channel definitions.
@@ -664,7 +745,7 @@ defmodule Phoenix.Endpoint do
   To specify the endpoint that will provide instrumentation, the first argument
   can be:
 
-    * a module name -  the endpoint itself
+    * a module name - the endpoint itself
     * a `Plug.Conn` struct - this macro will look for the endpoint module in the
       `:private` field of the connection; if it's not there, `fun` will be
       executed with no instrumentation
@@ -672,9 +753,9 @@ defmodule Phoenix.Endpoint do
       `:endpoint` field of the socket; if it's not there, `fun` will be
       executed with no instrumentation
 
-  Usually, users should prefer to instrument events using the `instrument/3`
+  Usually, users should prefer to instrument events using the `c:instrument/3`
   macro defined in every Phoenix endpoint. This macro should only be used for
-  cases when the endpoint is dynamic and not known at compile time instead.
+  cases when the endpoint is dynamic and not known at compile time.
 
   ## Examples
 
@@ -699,13 +780,13 @@ defmodule Phoenix.Endpoint do
     * `otp_app` - The otp app running the endpoint, for example `:my_app`
     * `endpoint` - The endpoint module, for example `MyApp.Endpoint`
 
-  ## Exampes
+  ## Examples
 
       iex> Phoenix.Endpoint.server?(:my_app, MyApp.Endpoint)
       true
   """
   def server?(otp_app, endpoint) when is_atom(otp_app) and is_atom(endpoint) do
-    Adapter.server?(otp_app, endpoint)
+    Phoenix.Endpoint.Supervisor.server?(otp_app, endpoint)
   end
 
   defp tear_alias({:__aliases__, meta, [h|t]}) do

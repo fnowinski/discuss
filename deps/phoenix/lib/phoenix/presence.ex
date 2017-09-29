@@ -34,11 +34,11 @@ defmodule Phoenix.Presence do
   Once added, presences can be tracked in your channel after joining:
 
       defmodule MyApp.MyChannel do
-        use MyApp.Web, :channel
+        use MyAppWeb, :channel
         alias MyApp.Presence
 
         def join("some:topic", _params, socket) do
-          send(self, :after_join)
+          send(self(), :after_join)
           {:ok, assign(socket, :user_id, ...)}
         end
 
@@ -51,11 +51,12 @@ defmodule Phoenix.Presence do
         end
       end
 
-  In the example above, `Presence.track` is used to register this
-  channel's process as a presence for the socket's user ID, with
-  a map of metadata. Next, the current presence information for
+  In the example above, the current presence information for
   the socket's topic is pushed to the client as a `"presence_state"` event.
-
+  Next, `Presence.track` is used to register this
+  channel's process as a presence for the socket's user ID, with
+  a map of metadata. 
+  
   Finally, a diff of presence join and leave events will be sent to the
   client as they happen in real-time with the "presence_diff" event.
   The diff structure will be a map of `:joins` and `:leaves` of the form:
@@ -112,8 +113,8 @@ defmodule Phoenix.Presence do
   @callback track(pid, topic, key :: String.t, meta :: map()) :: {:ok, binary()} | {:error, reason :: term()}
   @callback untrack(Phoenix.Socket.t, key :: String.t) :: :ok
   @callback untrack(pid, topic, key :: String.t) :: :ok
-  @callback update(Phoenix.Socket.t, key :: String.t, meta :: map()) :: {:ok, binary()} | {:error, reason :: term()}
-  @callback update(pid, topic, key :: String.t, meta ::map()) :: {:ok, binary()} | {:error, reason :: term()}
+  @callback update(Phoenix.Socket.t, key :: String.t, meta :: map() | (map() -> map())) :: {:ok, binary()} | {:error, reason :: term()}
+  @callback update(pid, topic, key :: String.t, meta :: map() | (map() -> map())) :: {:ok, binary()} | {:error, reason :: term()}
   @callback fetch(topic, presences) :: presences
   @callback list(topic) :: presences
   @callback handle_diff(%{topic => {joins :: presences, leaves :: presences}}, state :: term) :: {:ok, state :: term}
@@ -209,7 +210,7 @@ defmodule Phoenix.Presence do
 
   ## Presence datastructure
 
-  The presence information is returned as map with presences grouped
+  The presence information is returned as a map with presences grouped
   by key, cast as a string, and accumulated metadata, with the following form:
 
       %{key => %{metas: [%{phx_ref: ..., ...}, ...]}}

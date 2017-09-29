@@ -8,7 +8,7 @@ defmodule Phoenix.Transports.WebSocket do
 
       transport :websocket, Phoenix.Transports.WebSocket,
         timeout: :infinity,
-        serializer: Phoenix.Transports.WebSocketSerializer,
+        serializer: [{Phoenix.Transports.WebSocketSerializer, "~> 2.0.0"}],
         transport_log: false
 
     * `:timeout` - the timeout for keeping websocket connections
@@ -22,7 +22,13 @@ defmodule Phoenix.Transports.WebSocket do
       origin header is present. It defaults to true and, in such cases,
       it will check against the host value in `YourApp.Endpoint.config(:url)[:host]`.
       It may be set to `false` (not recommended) or to a list of explicitly
-      allowed origins
+      allowed origins.
+
+      check_origin: ["https://example.com",
+                     "//another.com:888", "//other.com"]
+
+      Note: To connect from a native app be sure to either have the native app
+      set an origin or allow any origin via `check_origin: false`
 
     * `:code_reloader` - optionally override the default `:code_reloader` value
       from the socket's endpoint
@@ -30,18 +36,28 @@ defmodule Phoenix.Transports.WebSocket do
   ## Serializer
 
   By default, JSON encoding is used to broker messages to and from clients.
-  A custom serializer may be given as module which implements the `encode!/1`
+  A custom serializer may be given as a module which implements the `encode!/1`
   and `decode!/2` functions defined by the `Phoenix.Transports.Serializer`
   behaviour.
 
   The `encode!/1` function must return a tuple in the format
   `{:socket_push, :text | :binary, String.t | binary}`.
+
+  ## Garbage collection
+
+  It's possible to force garbage collection in the transport process after
+  processing large messages.
+
+  Send `:garbage_collect` clause to the transport process:
+
+      send socket.transport_pid, :garbage_collect
   """
 
   @behaviour Phoenix.Socket.Transport
 
   def default_config() do
-    [serializer: Phoenix.Transports.WebSocketSerializer,
+    [serializer: [{Phoenix.Transports.WebSocketSerializer, "~> 1.0.0"},
+                  {Phoenix.Transports.V2.WebSocketSerializer, "~> 2.0.0"}],
      timeout: 60_000,
      transport_log: false]
   end
@@ -90,15 +106,14 @@ defmodule Phoenix.Transports.WebSocket do
   @doc false
   def ws_init({socket, config}) do
     Process.flag(:trap_exit, true)
-    serializer = Keyword.fetch!(config, :serializer)
-    timeout    = Keyword.fetch!(config, :timeout)
+    timeout = Keyword.fetch!(config, :timeout)
 
     if socket.id, do: socket.endpoint.subscribe(socket.id, link: true)
 
     {:ok, %{socket: socket,
             channels: %{},
             channels_inverse: %{},
-            serializer: serializer}, timeout}
+            serializer: socket.serializer}, timeout}
   end
 
   @doc false
@@ -123,8 +138,13 @@ defmodule Phoenix.Transports.WebSocket do
       nil   -> {:ok, state}
       {topic, join_ref} ->
         new_state = delete(state, topic, channel_pid)
-        encode_reply Transport.on_exit_message(topic, join_ref, reason), new_state
+        encode_reply(Transport.on_exit_message(topic, join_ref, reason), new_state)
     end
+  end
+
+  def ws_info({:graceful_exit, channel_pid, %Phoenix.Socket.Message{} = msg}, state) do
+    new_state = delete(state, msg.topic, channel_pid)
+    encode_reply(msg, new_state)
   end
 
   @doc false
@@ -134,6 +154,12 @@ defmodule Phoenix.Transports.WebSocket do
 
   def ws_info({:socket_push, _, _encoded_payload} = msg, state) do
     format_reply(msg, state)
+  end
+
+  @doc false
+  def ws_info(:garbage_collect, state) do
+    :erlang.garbage_collect(self())
+    {:ok, state}
   end
 
   def ws_info(_, state) do

@@ -18,6 +18,15 @@ defmodule Phoenix.Endpoint.Watcher do
         relative = Path.relative_to_cwd(cmd)
         Logger.error "Could not start watcher #{inspect relative} from #{inspect cd(merged_opts)}, executable does not exist"
         exit(:shutdown)
+    else
+      {_, 0} ->
+        :ok
+      {_, _} ->
+        # System.cmd returned a non-zero exit code
+        # sleep for a couple seconds before exiting to ensure this doesn't
+        # hit the supervisor's max_restarts / max_seconds limit
+        Process.sleep(2000)
+        exit(:watcher_command_error)
     end
   end
 
@@ -30,13 +39,13 @@ defmodule Phoenix.Endpoint.Watcher do
       !System.find_executable("node") ->
         Logger.error "Could not start watcher because \"node\" is not available. Your Phoenix " <>
                      "application is still running, however assets won't be compiled. " <>
-                     "You may fix this by installing \"node\" and then running \"npm install\"."
+                     "You may fix this by installing \"node\" and then running \"cd assets && npm install\"."
         exit(:shutdown)
 
       not File.exists?(script_path) ->
         Logger.error "Could not start node watcher because script #{inspect script_path} does not " <>
                      "exist. Your Phoenix application is still running, however assets " <>
-                     "won't be compiled. You may fix this by running \"npm install\"."
+                     "won't be compiled. You may fix this by running \"cd assets && npm install\"."
         exit(:shutdown)
 
       true -> :ok

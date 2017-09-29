@@ -45,8 +45,9 @@
                         'Elixir.Plug.Static.InvalidPathError',
                         'Elixir.Plug.Supervisor','Elixir.Plug.Test',
                         'Elixir.Plug.TimeoutError','Elixir.Plug.Upload',
-                        'Elixir.Plug.UploadError']},
+                        'Elixir.Plug.UploadError',plug_multipart]},
               {registered,[]},
-              {vsn,"1.3.5"},
+              {vsn,"1.4.3"},
               {applications,[kernel,stdlib,elixir,crypto,logger,mime]},
-              {mod,{'Elixir.Plug',[]}}]}.
+              {mod,{'Elixir.Plug',[]}},
+              {env,[{validate_header_keys_during_test,true}]}]}.

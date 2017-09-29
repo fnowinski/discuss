@@ -9,7 +9,6 @@
                         'Elixir.Poison.Encoder.Date',
                         'Elixir.Poison.Encoder.DateTime',
                         'Elixir.Poison.Encoder.Float',
-                        'Elixir.Poison.Encoder.HashDict',
                         'Elixir.Poison.Encoder.HashSet',
                         'Elixir.Poison.Encoder.Integer',
                         'Elixir.Poison.Encoder.List',
@@ -21,5 +20,5 @@
                         'Elixir.Poison.Encoder.Time','Elixir.Poison.Parser',
                         'Elixir.Poison.Pretty','Elixir.Poison.SyntaxError']},
               {registered,[]},
-              {vsn,"2.2.0"},
+              {vsn,"3.1.0"},
               {applications,[kernel,stdlib,elixir]}]}.

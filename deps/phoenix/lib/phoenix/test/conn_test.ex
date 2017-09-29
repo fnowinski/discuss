@@ -74,7 +74,7 @@ defmodule Phoenix.ConnTest do
   work.
 
   Keep in mind Phoenix will automatically recycle the connection
-  between dispatches. This usually works out well most times but
+  between dispatches. This usually works out well most times, but
   it may discard information if you are modifying the connection
   before the next dispatch:
 
@@ -85,7 +85,7 @@ defmodule Phoenix.ConnTest do
       conn = post conn, "/login"
 
       # We can also recycle manually in case we want custom headers
-      conn = 
+      conn =
         conn
         |> recycle()
         |> put_req_header("x-special", "nice")
@@ -292,7 +292,7 @@ defmodule Phoenix.ConnTest do
 
   ## Examples
 
-      # Assert we have an html repsonse with utf-8 charset
+      # Assert we have an html response with utf-8 charset
       assert response_content_type(conn, :html) =~ "charset=utf-8"
 
   """
@@ -316,7 +316,7 @@ defmodule Phoenix.ConnTest do
     case parse_content_type(header) do
       {part, subpart} ->
         format = Atom.to_string(format)
-        format in Plug.MIME.extensions(part <> "/" <> subpart) or
+        format in MIME.extensions(part <> "/" <> subpart) or
           format == subpart or String.ends_with?(subpart, "+" <> format)
       _  ->
         false
@@ -410,8 +410,10 @@ defmodule Phoenix.ConnTest do
     case Poison.decode(body) do
       {:ok, body} ->
         body
-      {:error, {:invalid, token}} ->
+      {:error, {:invalid, token, _}} ->
         raise "could not decode JSON body, invalid token #{inspect token} in body:\n\n#{body}"
+      {:error, :invalid, _} ->
+        raise "could not decode JSON body, body is empty"
     end
   end
 
@@ -432,6 +434,10 @@ defmodule Phoenix.ConnTest do
 
   def redirected_to(%Conn{state: :unset}, _status) do
     raise "expected connection to have redirected but no response was set/sent"
+  end
+
+  def redirected_to(conn, status) when is_atom(status) do
+    redirected_to(conn, Plug.Conn.Status.code(status))
   end
 
   def redirected_to(%Conn{status: status} = conn, status) do
@@ -486,7 +492,7 @@ defmodule Phoenix.ConnTest do
   Calls the Endpoint and bypasses Router match.
 
   Useful for unit testing Plugs where Endpoint and/or
-  router pipline plugs are required for proper setup.
+  router pipeline plugs are required for proper setup.
 
   ## Examples
 
@@ -497,7 +503,7 @@ defmodule Phoenix.ConnTest do
 
       conn =
         conn
-        |> bypass_through(MyApp.Router, [:browser])
+        |> bypass_through(MyAppWeb.Router, [:browser])
         |> get("/")
         |> MyApp.RequireAuthentication.call([])
       assert conn.halted
@@ -506,7 +512,7 @@ defmodule Phoenix.ConnTest do
 
       conn =
         conn
-        |> bypass_through(MyApp.Router, [])
+        |> bypass_through(MyAppWeb.Router, [])
         |> get("/")
         |> MyApp.RequireAuthentication.call([])
       assert conn.halted
@@ -533,6 +539,30 @@ defmodule Phoenix.ConnTest do
   @spec bypass_through(Conn.t, module, :atom | list) :: Conn.t
   def bypass_through(conn, router, pipelines \\ []) do
     Plug.Conn.put_private(conn, :phoenix_bypass, {router, List.wrap(pipelines)})
+  end
+
+  @doc """
+  Returns the matched params from the URL the connection was redirected to.
+
+  Uses the provided `%Plug.Conn{}`s router matched in the previous request.
+  Raises if the response's location header is not set.
+
+  ## Examples
+
+      assert redirected_to(conn) =~ "/posts/123"
+      assert %{id: "123"} = redirected_params(conn)
+  """
+  @spec redirected_params(Conn.t) :: map
+  def redirected_params(%Plug.Conn{} = conn) do
+    router = Phoenix.Controller.router_module(conn)
+    %URI{path: path, host: host} = conn |> redirected_to() |> URI.parse()
+    path_info = split_path(path)
+
+    {conn, _pipes, _dispatch} = router.__match_route__(conn, "GET", path_info, host || conn.host)
+    Enum.into(conn.path_params, %{}, fn {key, val} -> {String.to_atom(key), val} end)
+  end
+  defp split_path(path) do
+    for segment <- String.split(path, "/"), segment != "", do: segment
   end
 
   @doc """
@@ -570,7 +600,6 @@ defmodule Phoenix.ConnTest do
       |> receive_response(expected_status)
 
     discard_previously_sent()
-
     result
   end
 
@@ -578,7 +607,7 @@ defmodule Phoenix.ConnTest do
     if conn.state == :sent do
       flunk "expected error to be sent as #{expected_status} status, but response sent #{conn.status} without error"
     else
-      flunk_not_sent(expected_status)
+      flunk "expected error to be sent as #{expected_status} status, but no error happened"
     end
   end
   defp receive_response({:error, {exception, stack}}, expected_status) do
@@ -587,14 +616,19 @@ defmodule Phoenix.ConnTest do
         {expected_status, headers, body}
 
       {ref, {sent_status, _headers, _body}} when is_reference(ref) ->
-        reraise_error(expected_status, sent_status, exception, stack)
+        reraise ExUnit.AssertionError.exception("""
+        expected error to be sent as #{expected_status} status, but got #{sent_status} from:
 
-    after 0 -> flunk_not_sent(expected_status)
+        #{Exception.format_banner(:error, exception)}
+        """), stack
+
+    after 0 ->
+      reraise ExUnit.AssertionError.exception("""
+      expected error to be sent as #{expected_status} status, but got an error with no response from:
+
+      #{Exception.format_banner(:error, exception)}
+      """), stack
     end
-  end
-
-  defp flunk_not_sent(expected_status) do
-    flunk "expected #{expected_status} response but no response sent"
   end
 
   defp discard_previously_sent() do
@@ -612,14 +646,5 @@ defmodule Phoenix.ConnTest do
     rescue
       exception -> {:error, {exception, System.stacktrace()}}
     end
-  end
-
-  defp reraise_error(expected_stat, sent_stat, exception, stack) do
-    wrapper = %ExUnit.AssertionError{message: """
-    expected response status to be #{expected_stat}, but got #{sent_stat} from:
-
-    #{Exception.format_banner(:error, exception)}
-    """}
-    reraise(wrapper, stack)
   end
 end

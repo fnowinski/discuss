@@ -24,7 +24,10 @@ defmodule Mix.Tasks.Phoenix.Gen.Html do
   Read the documentation for `phoenix.gen.model` for more
   information on attributes and namespaced resources.
   """
+
+  @doc false
   def run(args) do
+    IO.puts :stderr, "mix phoenix.gen.html is deprecated. Use phx.gen.html instead."
     switches = [binary_id: :boolean, model: :boolean]
 
     {opts, parsed, _} = OptionParser.parse(args, switches: switches)
@@ -33,20 +36,20 @@ defmodule Mix.Tasks.Phoenix.Gen.Html do
     default_opts = Application.get_env(:phoenix, :generators, [])
     opts = Keyword.merge(default_opts, opts)
 
-    attrs   = Mix.Phoenix.attrs(attrs)
+    attrs   = Mix.Phoenix.Schema.attrs(attrs)
     binding = Mix.Phoenix.inflect(singular)
     path    = binding[:path]
     route   = String.split(path, "/") |> Enum.drop(-1) |> Kernel.++([plural]) |> Enum.join("/")
     binding = binding ++ [plural: plural, route: route, attrs: attrs,
                           sample_id: sample_id(opts),
-                          inputs: inputs(attrs), params: Mix.Phoenix.params(attrs),
+                          inputs: inputs(attrs), params: Mix.Phoenix.Schema.params(attrs),
                           template_singular: String.replace(binding[:singular], "_", " "),
                           template_plural: String.replace(plural, "_", " ")]
 
     Mix.Phoenix.check_module_name_availability!(binding[:module] <> "Controller")
     Mix.Phoenix.check_module_name_availability!(binding[:module] <> "View")
 
-    Mix.Phoenix.copy_from paths(), "priv/templates/phoenix.gen.html", "", binding, [
+    Mix.Phoenix.copy_from paths(), "priv/templates/phoenix.gen.html", binding, [
       {:eex, "controller.ex",       "web/controllers/#{path}_controller.ex"},
       {:eex, "edit.html.eex",       "web/templates/#{path}/edit.html.eex"},
       {:eex, "form.html.eex",       "web/templates/#{path}/form.html.eex"},
@@ -110,23 +113,25 @@ defmodule Mix.Tasks.Phoenix.Gen.Html do
         {nil, nil, nil}
       {_, {:references, _}} ->
         {nil, nil, nil}
-      {key, :integer}    ->
+      {key, :integer} ->
         {label(key), ~s(<%= number_input f, #{inspect(key)}, class: "form-control" %>), error(key)}
-      {key, :float}      ->
+      {key, :float} ->
         {label(key), ~s(<%= number_input f, #{inspect(key)}, step: "any", class: "form-control" %>), error(key)}
-      {key, :decimal}    ->
+      {key, :decimal} ->
         {label(key), ~s(<%= number_input f, #{inspect(key)}, step: "any", class: "form-control" %>), error(key)}
-      {key, :boolean}    ->
-        {label(key), ~s(<%= checkbox f, #{inspect(key)}, class: "form-control" %>), error(key)}
-      {key, :text}       ->
+      {key, :boolean} ->
+        {label(key), ~s(<%= checkbox f, #{inspect(key)}, class: "checkbox" %>), error(key)}
+      {key, :text} ->
         {label(key), ~s(<%= textarea f, #{inspect(key)}, class: "form-control" %>), error(key)}
-      {key, :date}       ->
+      {key, :date} ->
         {label(key), ~s(<%= date_select f, #{inspect(key)}, class: "form-control" %>), error(key)}
-      {key, :time}       ->
+      {key, :time} ->
         {label(key), ~s(<%= time_select f, #{inspect(key)}, class: "form-control" %>), error(key)}
-      {key, :datetime}   ->
+      {key, :utc_datetime} ->
         {label(key), ~s(<%= datetime_select f, #{inspect(key)}, class: "form-control" %>), error(key)}
-      {key, _}           ->
+      {key, :naive_datetime} ->
+        {label(key), ~s(<%= datetime_select f, #{inspect(key)}, class: "form-control" %>), error(key)}
+      {key, _}  ->
         {label(key), ~s(<%= text_input f, #{inspect(key)}, class: "form-control" %>), error(key)}
     end
   end

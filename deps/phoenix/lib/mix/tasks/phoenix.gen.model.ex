@@ -1,8 +1,4 @@
 defmodule Mix.Tasks.Phoenix.Gen.Model do
-  use Mix.Task
-
-  @shortdoc "Generates an Ecto model"
-
   @moduledoc """
   Generates an Ecto model in your Phoenix application.
 
@@ -82,7 +78,11 @@ defmodule Mix.Tasks.Phoenix.Gen.Model do
   switches, e.g. `--no-binary-id` to use normal ids despite the default
   configuration or `--migration` to force generation of the migration.
   """
+  use Mix.Task
+
+  @doc false
   def run(args) do
+    IO.puts :stderr, "mix phoenix.gen.model is deprecated. Use phx.gen.schema instead."
     switches = [migration: :boolean, binary_id: :boolean, instructions: :string]
 
     {opts, parsed, _} = OptionParser.parse(args, switches: switches)
@@ -91,10 +91,10 @@ defmodule Mix.Tasks.Phoenix.Gen.Model do
     default_opts = Application.get_env(:phoenix, :generators, [])
     opts = Keyword.merge(default_opts, opts)
 
-    uniques   = Mix.Phoenix.uniques(attrs)
-    attrs     = Mix.Phoenix.attrs(attrs)
+    uniques   = Mix.Phoenix.Schema.uniques(attrs)
+    attrs     = Mix.Phoenix.Schema.attrs(attrs)
+    params    = Mix.Phoenix.Schema.params(attrs)
     binding   = Mix.Phoenix.inflect(singular)
-    params    = Mix.Phoenix.params(attrs)
     path      = binding[:path]
 
     Mix.Phoenix.check_module_name_availability!(binding[:module])
@@ -111,7 +111,7 @@ defmodule Mix.Tasks.Phoenix.Gen.Model do
       {:eex, "model_test.exs", "test/models/#{path}_test.exs"},
     ] ++ migration(opts[:migration], path)
 
-    Mix.Phoenix.copy_from paths(), "priv/templates/phoenix.gen.model", "", binding, files
+    Mix.Phoenix.copy_from paths(), "priv/templates/phoenix.gen.model", binding, files
 
     # Print any extra instruction given by parent generators
     Mix.shell.info opts[:instructions] || ""
@@ -150,6 +150,7 @@ defmodule Mix.Tasks.Phoenix.Gen.Model do
     """
   end
 
+
   defp partition_attrs_and_assocs(attrs) do
     Enum.partition attrs, fn
       {_, {:references, _}} ->
@@ -158,7 +159,6 @@ defmodule Mix.Tasks.Phoenix.Gen.Model do
         Mix.raise """
         Phoenix generators expect the table to be given to #{key}:references.
         For example:
-
             mix phoenix.gen.model Comment comments body:text post_id:references:posts
         """
       _ ->
@@ -222,9 +222,6 @@ defmodule Mix.Tasks.Phoenix.Gen.Model do
 
   defp value_to_type(:text), do: :string
   defp value_to_type(:uuid), do: Ecto.UUID
-  defp value_to_type(:date), do: Ecto.Date
-  defp value_to_type(:time), do: Ecto.Time
-  defp value_to_type(:datetime), do: Ecto.DateTime
   defp value_to_type(v) do
     if Code.ensure_loaded?(Ecto.Type) and not Ecto.Type.primitive?(v) do
       Mix.raise "Unknown type `#{v}` given to generator"

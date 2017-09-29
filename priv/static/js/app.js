@@ -1636,9 +1636,7 @@ require.register("web/static/js/app.js", function(exports, require, module) {
 
 require("phoenix_html");
 
-var _socket = require("./socket");
-
-var _socket2 = _interopRequireDefault(_socket);
+require("./socket");
 
 var _comment = require("./comment");
 
@@ -1648,11 +1646,46 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 });
 
 ;require.register("web/static/js/comment.js", function(exports, require, module) {
-"use strict";
+// import {Socket, Presence} from "phoenix"
 
-Object.defineProperty(exports, "__esModule", {
-  value: true
+// let socket = new Socket("/socket", {params: {token: window.userToken}})
+
+// socket.connect()
+
+// let channel = socket.channel("comment:lobby", {});
+// let form = $("#comment-form");
+// let comment = $("#comment-input");
+// let commentContainer = document.getElementById("comments-container");
+
+// comment.on("keypress", event => {
+// if(event.keyCode == 13) {
+// channel.push("comment:new", {comment: comment.val()})
+// comment.val("")
+// }
+// });
+
+// channel.on("comment:new", payload => {
+// let template = document.createElement("li");
+// template.className = "collection-item avatar";
+// template.innerHTML = `<img src="images/yuna.jpg" alt="" class="circle">
+// <span class="title">${payload.comment}</span>
+// <p>${payload.user}</p>
+// <a href="#!" class="secondary-content"><i class="material-icons">grade</i></a>`
+
+// commentContainer.appendChild(template);
+// commentContainer.scrollTop = commentContainer.scrollHeight;
+// });
+
+// channel.join()
+// .receive("ok", resp => { console.log("Joined Comment Socket", resp) })
+// .receive("error", resp => { console.log("Unable to join", resp) })
+
+// export default socket
+"use strict";
 });
+
+;require.register("web/static/js/socket.js", function(exports, require, module) {
+"use strict";
 
 var _phoenix = require("phoenix");
 
@@ -1660,37 +1693,19 @@ var socket = new _phoenix.Socket("/socket", { params: { token: window.userToken 
 
 socket.connect();
 
-var channel = socket.channel("comment:lobby", {});
-var form = $("#comment-form");
-var comment = $("#comment-input");
-var commentContainer = document.getElementById("comments-container");
+var createSocket = function createSocket(topicId) {
+  var channel = socket.channel("comments:" + topicId, {});
+  channel.join().receive("ok", function (resp) {
+    console.log("Joined successfully", resp);
+  }).receive("error", function (resp) {
+    console.log("Unable to join", resp);
+  });
+};
 
-comment.on("keypress", function (event) {
-  if (event.keyCode == 13) {
-    channel.push("comment:new", { comment: comment.val() });
-    comment.val("");
-  }
+window.createSocket = createSocket;
 });
 
-channel.on("comment:new", function (payload) {
-  var template = document.createElement("li");
-  template.className = "collection-item avatar";
-  template.innerHTML = "<img src=\"images/yuna.jpg\" alt=\"\" class=\"circle\">\n                        <span class=\"title\">" + payload.comment + "</span>\n                        <p>" + payload.user + "</p>\n                        <a href=\"#!\" class=\"secondary-content\"><i class=\"material-icons\">grade</i></a>";
-
-  commentContainer.appendChild(template);
-  commentContainer.scrollTop = commentContainer.scrollHeight;
-});
-
-channel.join().receive("ok", function (resp) {
-  console.log("Joined Comment Socket", resp);
-}).receive("error", function (resp) {
-  console.log("Unable to join", resp);
-});
-
-exports.default = socket;
-});
-
-;require.register("web/static/js/socket.js", function(exports, require, module) {
+require.register("web/static/js/socket_old.js", function(exports, require, module) {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -1756,8 +1771,8 @@ channel.join().receive("ok", function (resp) {
 exports.default = socket;
 });
 
-;require.alias("phoenix/priv/static/phoenix.js", "phoenix");
-require.alias("phoenix_html/priv/static/phoenix_html.js", "phoenix_html");require.register("___globals___", function(exports, require, module) {
+;require.alias("phoenix_html/priv/static/phoenix_html.js", "phoenix_html");
+require.alias("phoenix/priv/static/phoenix.js", "phoenix");require.register("___globals___", function(exports, require, module) {
   
 });})();require('___globals___');
 

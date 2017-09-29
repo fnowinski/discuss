@@ -240,13 +240,26 @@ defmodule Phoenix.ChannelTest do
   defmacro connect(handler, params) do
     if endpoint = Module.get_attribute(__CALLER__.module, :endpoint) do
       quote do
-        Transport.connect(unquote(endpoint), unquote(handler), :channel_test,
-                          unquote(__MODULE__), NoopSerializer, Phoenix.ChannelTest.__stringify__(unquote(params)))
+        unquote(__MODULE__).__connect__(unquote(endpoint), unquote(handler), unquote(params))
       end
     else
       raise "module attribute @endpoint not set for socket/2"
     end
   end
+
+  @doc false
+  def __connect__(endpoint, handler, params) do
+    endpoint
+    |> Transport.connect(handler, :channel_test, __MODULE__, NoopSerializer, __stringify__(params))
+    |> subscribe_to_socket_id(endpoint, handler)
+  end
+  defp subscribe_to_socket_id({:ok, socket}, endpoint, handler) do
+    if topic = handler.id(socket) do
+      :ok = endpoint.subscribe(topic)
+    end
+    {:ok, socket}
+  end
+  defp subscribe_to_socket_id(error, _endpoint, _handler), do: error
 
   @doc "See `subscribe_and_join!/4`."
   def subscribe_and_join!(%Socket{} = socket, topic) when is_binary(topic) do
@@ -255,11 +268,15 @@ defmodule Phoenix.ChannelTest do
   @doc "See `subscribe_and_join!/4`."
   def subscribe_and_join!(%Socket{} = socket, topic, payload)
       when is_binary(topic) and is_map(payload) do
-    channel = match_topic_to_channel!(socket, topic)
-    subscribe_and_join!(socket, channel, topic, payload)
+
+    {channel, opts} = match_topic_to_channel!(socket, topic)
+
+    socket
+    |> with_opts(opts)
+    |> subscribe_and_join!(channel, topic, payload)
   end
   @doc """
-  Same as `subscribe_and_join/4` but returns either the socket
+  Same as `subscribe_and_join/4`, but returns either the socket
   or throws an error.
 
   This is helpful when you are not testing joining the channel
@@ -280,8 +297,12 @@ defmodule Phoenix.ChannelTest do
   @doc "See `subscribe_and_join/4`."
   def subscribe_and_join(%Socket{} = socket, topic, payload)
       when is_binary(topic) and is_map(payload) do
-    channel = match_topic_to_channel!(socket, topic)
-    subscribe_and_join(socket, channel, topic, payload)
+
+    {channel, opts} = match_topic_to_channel!(socket, topic)
+
+    socket
+    |> with_opts(opts)
+    |> subscribe_and_join(channel, topic, payload)
   end
   @doc """
   Subscribes to the given topic and joins the channel
@@ -312,9 +333,14 @@ defmodule Phoenix.ChannelTest do
   @doc "See `join/4`."
   def join(%Socket{} = socket, topic, payload)
       when is_binary(topic) and is_map(payload) do
-    channel = match_topic_to_channel!(socket, topic)
-    join(socket, channel, topic, payload)
+
+    {channel, opts} = match_topic_to_channel!(socket, topic)
+
+    socket
+    |> with_opts(opts)
+    |> join(channel, topic, payload)
   end
+
   @doc """
   Joins the channel under the given topic and payload.
 
@@ -325,7 +351,9 @@ defmodule Phoenix.ChannelTest do
   """
   def join(%Socket{} = socket, channel, topic, payload \\ %{})
       when is_atom(channel) and is_binary(topic) and is_map(payload) do
-    socket = %Socket{socket | topic: topic, channel: channel}
+
+    ref = System.unique_integer([:positive])
+    socket = Transport.build_channel_socket(socket, channel, topic, ref, [])
 
     case Server.join(socket, payload) do
       {:ok, reply, pid} ->
@@ -390,7 +418,7 @@ defmodule Phoenix.ChannelTest do
   end
 
   @doc """
-  Same as `broadcast_from/3` but raises if broadcast fails.
+  Same as `broadcast_from/3`, but raises if broadcast fails.
   """
   def broadcast_from!(socket, event, message) do
     %{pubsub_server: pubsub_server, topic: topic, transport_pid: transport_pid} = socket
@@ -409,6 +437,23 @@ defmodule Phoenix.ChannelTest do
   the data being sent, as long as something was sent.
 
   The timeout is in milliseconds and defaults to 100ms.
+
+  **NOTE:** Because event and payload are patterns, they will be matched.  This
+  means that if you wish to assert that the received payload is equivalent to
+  an existing variable, you need to pin the variable in the assertion
+  expression.
+
+  Good:
+
+      expected_payload = %{foo: "bar"}
+      assert_push "some_event", ^expected_payload
+
+  Bad:
+
+      expected_payload = %{foo: "bar"}
+      assert_push "some_event", expected_payload
+      # The code above does not assert the payload matches the described map.
+
   """
   defmacro assert_push(event, payload, timeout \\ 100) do
     quote do
@@ -535,12 +580,14 @@ defmodule Phoenix.ChannelTest do
     end
 
     case socket.handler.__channel__(topic, socket.transport_name) do
-      channel when is_atom(channel) -> channel
+      {channel, opts} when is_atom(channel) -> {channel, opts}
       _ -> raise "no channel found for topic #{inspect topic} in #{inspect socket.handler}"
     end
   end
 
   @doc false
+  def __stringify__(%{__struct__: _} = struct),
+    do: struct
   def __stringify__(%{} = params),
     do: Enum.into(params, %{}, &stringify_kv/1)
   def __stringify__(other),
@@ -548,4 +595,8 @@ defmodule Phoenix.ChannelTest do
 
   defp stringify_kv({k, v}),
     do: {to_string(k), __stringify__(v)}
+
+  defp with_opts(%Socket{} = socket, opts) do
+    %Socket{socket | assigns: Map.merge(socket.assigns, opts[:assigns] || %{})}
+  end
 end

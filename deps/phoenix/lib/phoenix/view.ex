@@ -2,21 +2,20 @@ defmodule Phoenix.View do
   @moduledoc """
   Defines the view layer of a Phoenix application.
 
-  This module is used to define the application main view, which
-  serves as the base for all other views and templates in the
-  application.
+  This module is used to define the application's main view, which
+  serves as the base for all other views and templates.
 
   The view layer also contains conveniences for rendering templates,
   including support for layouts and encoders per format.
 
   ## Examples
 
-  Phoenix defines the view template at `web/web.ex`:
+  Phoenix defines the view template at `lib/web/web.ex`:
 
-      defmodule YourApp.Web do
+      defmodule YourAppWeb do
         def view do
           quote do
-            use Phoenix.View, root: "web/templates"
+            use Phoenix.View, root: "lib/web/templates"
 
             # Import common functionality
             import YourApp.Router.Helpers
@@ -32,24 +31,22 @@ defmodule Phoenix.View do
   We can use the definition above to define any view in your application:
 
       defmodule YourApp.UserView do
-        use YourApp.Web, :view
+        use YourAppWeb, :view
       end
 
-  Because we have defined the template root to be "web/templates", `Phoenix.View`
+  Because we have defined the template root to be "lib/web/templates", `Phoenix.View`
   will automatically load all templates at "web/templates/user" and include them
   in the `YourApp.UserView`. For example, imagine we have the template:
 
       # web/templates/user/index.html.eex
       Hello <%= @name %>
 
-  The `.eex` extension is called a template engine which tells Phoenix how
-  to compile the code in the file into actual Elixir source code. After it is
+  The `.eex` extension maps to a template engine which tells Phoenix how
+  to compile the code in the file into Elixir source code. After it is
   compiled, the template can be rendered as:
 
       Phoenix.View.render(YourApp.UserView, "index.html", name: "John Doe")
       #=> {:safe, "Hello John Doe"}
-
-  We will discuss rendering in detail next.
 
   ## Rendering
 
@@ -65,7 +62,7 @@ defmodule Phoenix.View do
   representation specific to the template format. In the example above,
   we got: `{:safe, "Hello John Doe"}`. The safe tuple annotates that our
   template is safe and that we don't need to escape its contents because
-  all data was already encoded so far. Let's try to inject custom code:
+  all data has already been encoded. Let's try to inject custom code:
 
       Phoenix.View.render(YourApp.UserView, "index.html", name: "John<br />Doe")
       #=> {:safe, "Hello John&lt;br /&gt;Doe"}
@@ -88,7 +85,7 @@ defmodule Phoenix.View do
 
   Both JSON and HTML formats will be encoded only when passing the data
   to the controller via the `render_to_iodata/3` function. The
-  `render_to_iodata/3` uses the notion of format encoders to convert a
+  `render_to_iodata/3` function uses the notion of format encoders to convert a
   particular format to its string/iodata representation.
 
   Phoenix ships with some template engines and format encoders, which
@@ -121,7 +118,7 @@ defmodule Phoenix.View do
   the path will be `Path.join(root, "admin/user")` and so on. For
   explicit root path locations, the `:path` option can instead be provided.
   The `:root` and `:path` are joined to form the final lookup path.
-  A blank string may be provided to use the `:root` path direclty as the
+  A blank string may be provided to use the `:root` path directly as the
   template lookup path.
 
   Setting the namespace to `MyApp.Admin` in the second example will force
@@ -156,7 +153,7 @@ defmodule Phoenix.View do
   ## Assigns
 
   Assigns are meant to be user data that will be available in templates.
-  However there are keys under assigns that are specially handled by
+  However, there are keys under assigns that are specially handled by
   Phoenix, they are:
 
     * `:layout` - tells Phoenix to wrap the rendered result in the
@@ -282,8 +279,8 @@ defmodule Phoenix.View do
   """
   def render_many(collection, view, template, assigns \\ %{}) do
     assigns = to_map(assigns)
-    Enum.map(collection, fn model ->
-      render view, template, assign_model(assigns, view, model)
+    Enum.map(collection, fn resource ->
+      render view, template, assign_resource(assigns, view, resource)
     end)
   end
 
@@ -313,19 +310,19 @@ defmodule Phoenix.View do
       end
 
   """
-  def render_one(model, view, template, assigns \\ %{}) do
-    if model != nil do
-      assigns = to_map(assigns)
-      render view, template, assign_model(assigns, view, model)
-    end
+  def render_one(resource, view, template, assigns \\ %{})
+  def render_one(nil, _view, _template, _assigns), do: nil
+  def render_one(resource, view, template, assigns) do
+    assigns = to_map(assigns)
+    render view, template, assign_resource(assigns, view, resource)
   end
 
   defp to_map(assigns) when is_map(assigns), do: assigns
   defp to_map(assigns) when is_list(assigns), do: :maps.from_list(assigns)
 
-  defp assign_model(assigns, view, model) do
+  defp assign_resource(assigns, view, resource) do
     as = Map.get(assigns, :as) || view.__resource__
-    Map.put(assigns, as, model)
+    Map.put(assigns, as, resource)
   end
 
   @doc """

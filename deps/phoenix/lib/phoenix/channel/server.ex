@@ -77,7 +77,9 @@ defmodule Phoenix.Channel.Server do
       payload: payload
     }
   end
-  def broadcast(_, _, _, _), do: raise_invalid_message()
+  def broadcast(_, topic, event, payload) do
+    raise_invalid_message(topic, event, payload)
+  end
 
   @doc """
   Broadcasts on the given pubsub server with the given
@@ -93,7 +95,10 @@ defmodule Phoenix.Channel.Server do
       payload: payload
     }
   end
-  def broadcast!(_, _, _, _), do: raise_invalid_message()
+  def broadcast!(_, topic, event, payload) do
+    raise_invalid_message(topic, event, payload)
+  end
+
 
   @doc """
   Broadcasts on the given pubsub server with the given
@@ -109,7 +114,9 @@ defmodule Phoenix.Channel.Server do
       payload: payload
     }
   end
-  def broadcast_from(_, _, _, _, _), do: raise_invalid_message()
+  def broadcast_from(_, _from, topic, event, payload) do
+    raise_invalid_message(topic, event, payload)
+  end
 
   @doc """
   Broadcasts on the given pubsub server with the given
@@ -125,7 +132,9 @@ defmodule Phoenix.Channel.Server do
       payload: payload
     }
   end
-  def broadcast_from!(_, _, _, _, _), do: raise_invalid_message()
+  def broadcast_from!(_, _from, topic, event, payload) do
+    raise_invalid_message(topic, event, payload)
+  end
 
   @doc """
   Pushes a message with the given topic, event and payload
@@ -140,25 +149,34 @@ defmodule Phoenix.Channel.Server do
     send pid, encoded_msg
     :ok
   end
-  def push(_, _, _, _, _), do: raise_invalid_message()
+  def push(_, topic, event, payload, _) do
+    raise_invalid_message(topic, event, payload)
+  end
 
   @doc """
   Replies to a given ref to the transport process.
   """
-  def reply(pid, ref, topic, {status, payload}, serializer)
+  def reply(pid, join_ref, ref, topic, {status, payload}, serializer)
       when is_binary(topic) and is_map(payload) do
 
     send pid, serializer.encode!(
-      %Reply{topic: topic, ref: ref, status: status, payload: payload}
+      %Reply{topic: topic, join_ref: join_ref, ref: ref, status: status, payload: payload}
     )
     :ok
   end
-  def reply(_, _, _, _, _), do: raise_invalid_message()
+  def reply(_, _, _, topic, {_status, payload}, _) do
+    raise_invalid_message(topic, "phx_reply", payload)
+  end
 
+  @spec raise_invalid_message(topic :: term, event :: term, payload :: term) :: no_return()
+  defp raise_invalid_message(topic, event, payload) do
+    raise ArgumentError, """
+    topic and event must be strings, message must be a map, got:
 
-  @spec raise_invalid_message() :: no_return()
-  defp raise_invalid_message do
-    raise ArgumentError, "topic and event must be strings, message must be a map"
+      topic: #{inspect topic}
+      event: #{inspect event}
+      payload: #{inspect payload}
+    """
   end
 
   ## Callbacks
@@ -281,6 +299,19 @@ defmodule Phoenix.Channel.Server do
     end)
   end
 
+  @doc false
+  # TODO: Revisit in future GenServer releases
+  def unhandled_handle_info(msg, state) do
+    proc =
+      case Process.info(self(), :registered_name) do
+        {_, []}   -> self()
+        {_, name} -> name
+      end
+    :error_logger.warning_msg('~p ~p received unexpected message in handle_info/2: ~p~n',
+                              [__MODULE__, proc, msg])
+    {:noreply, state}
+  end
+
   ## Handle results
 
   defp handle_result({:reply, reply, %Socket{} = socket}, callback) do
@@ -290,10 +321,16 @@ defmodule Phoenix.Channel.Server do
 
   defp handle_result({:stop, reason, reply, socket}, callback) do
     handle_reply(socket, reply, callback)
-    {:stop, reason, socket}
+    handle_result({:stop, reason, socket}, callback)
   end
 
   defp handle_result({:stop, reason, socket}, _callback) do
+    case reason do
+      :normal -> notify_transport_of_graceful_exit(socket)
+      :shutdown -> notify_transport_of_graceful_exit(socket)
+      {:shutdown, _} -> notify_transport_of_graceful_exit(socket)
+      _ -> :noop
+    end
     {:stop, reason, socket}
   end
 
@@ -301,11 +338,16 @@ defmodule Phoenix.Channel.Server do
     {:noreply, put_in(socket.ref, nil)}
   end
 
+  defp handle_result({:noreply, socket, timeout_or_hibernate}, _callback) do
+    {:noreply, put_in(socket.ref, nil), timeout_or_hibernate}
+  end
+
   defp handle_result(result, :handle_in) do
     raise """
     Expected `handle_in/3` to return one of:
 
         {:noreply, Socket.t} |
+        {:noreply, Socket.t, timeout | :hibernate} |
         {:reply, {status :: atom, response :: map}, Socket.t} |
         {:reply, status :: atom, Socket.t} |
         {:stop, reason :: term, Socket.t} |
@@ -321,6 +363,7 @@ defmodule Phoenix.Channel.Server do
     Expected `#{callback}` to return one of:
 
         {:noreply, Socket.t} |
+        {:noreply, Socket.t, timeout | :hibernate} |
         {:stop, reason :: term, Socket.t} |
 
     got #{inspect result}
@@ -332,7 +375,7 @@ defmodule Phoenix.Channel.Server do
   defp handle_reply(socket, {status, payload}, :handle_in)
        when is_atom(status) and is_map(payload) do
 
-    reply(socket.transport_pid, socket.ref, socket.topic, {status, payload},
+    reply(socket.transport_pid, socket.join_ref, socket.ref, socket.topic, {status, payload},
           socket.serializer)
   end
 
@@ -362,5 +405,11 @@ defmodule Phoenix.Channel.Server do
     Channel replies can only be sent from a `handle_in/3` callback.
     Use `push/3` to send an out-of-band message down the socket
     """
+  end
+
+  defp notify_transport_of_graceful_exit(socket) do
+    Phoenix.Socket.Transport.notify_graceful_exit(socket)
+    Process.unlink(socket.transport_pid)
+    :ok
   end
 end

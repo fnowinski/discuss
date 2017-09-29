@@ -1,8 +1,4 @@
 defmodule Mix.Tasks.Phoenix.Gen.Channel do
-  use Mix.Task
-
-  @shortdoc "Generates a Phoenix channel"
-
   @moduledoc """
   Generates a Phoenix channel.
 
@@ -16,7 +12,12 @@ defmodule Mix.Tasks.Phoenix.Gen.Channel do
     * a channel_test in test/channels
 
   """
+  use Mix.Task
+
+  @doc false
   def run(args) do
+    IO.puts :stderr, "mix phoenix.gen.channel is deprecated. Use phx.gen.channel instead."
+
     [module] = validate_args!(args)
 
     binding = Mix.Phoenix.inflect(module)
@@ -24,7 +25,7 @@ defmodule Mix.Tasks.Phoenix.Gen.Channel do
 
     Mix.Phoenix.check_module_name_availability!(binding[:module] <> "Channel")
 
-    Mix.Phoenix.copy_from paths(), "priv/templates/phoenix.gen.channel", "", binding, [
+    Mix.Phoenix.copy_from paths(), "priv/templates/phoenix.gen.channel", binding, [
       {:eex, "channel.ex",       "web/channels/#{path}_channel.ex"},
       {:eex, "channel_test.exs", "test/channels/#{path}_channel_test.exs"},
     ]
@@ -37,6 +38,7 @@ defmodule Mix.Tasks.Phoenix.Gen.Channel do
     """
   end
 
+  @doc false
   @spec raise_with_help() :: no_return()
   defp raise_with_help do
     Mix.raise """

@@ -1,10 +1,9 @@
 defmodule Discuss.UserSocket do
   use Phoenix.Socket
 
-  channel "room", Discuss.ChatRoomChannel
-
-  channel "comment:lobby", Discuss.CommentChannel
-  transport :websocket, Phoenix.Transports.WebSocket, timeout: 45_000
+  channel "comments:*", Discuss.CommentsChannel
+  
+  transport :websocket, Phoenix.Transports.WebSocket
 
   def connect(%{"token" => token}, socket) do
     case Phoenix.Token.verify(socket, "user salt", token, max_age: 1000000) do
@@ -16,3 +15,5 @@ defmodule Discuss.UserSocket do
 
   def id(_socket), do: nil
 end
+
+# channel "room", Discuss.ChatRoomChannel

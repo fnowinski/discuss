@@ -1,16 +1,16 @@
 defmodule Phoenix do
   @moduledoc """
-  This is documentation for the Phoenix project.
+  This is the documentation for the Phoenix project.
 
-  By default, Phoenix applications depend on other packages besides
-  Phoenix itself. Below we provide a short explanation with links to
-  their documentation for each of those projects:
+  By default, Phoenix applications depend on the following packages:
 
     * [Ecto](https://hexdocs.pm/ecto) - a language integrated query and
       database wrapper
 
     * [Phoenix](https://hexdocs.pm/phoenix) - the Phoenix web framework
       (these docs)
+
+    * [Phoenix.js](js) - Phoenix Channels JavaScript client
 
     * [Phoenix Pubsub](https://hexdocs.pm/phoenix_pubsub) - a distributed
       pubsub system with presence support
@@ -44,6 +44,13 @@ defmodule Phoenix do
     end
 
     # Start the supervision tree
-    Phoenix.Supervisor.start_link
+    import Supervisor.Spec
+
+    children = [
+      # Code reloading must be serial across all Phoenix apps
+      worker(Phoenix.CodeReloader.Server, [])
+    ]
+
+    Supervisor.start_link(children, strategy: :one_for_one, name: Phoenix.Supervisor)
   end
 end
